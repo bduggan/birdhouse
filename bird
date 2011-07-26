@@ -35,7 +35,7 @@ debug "connecting to $ws_url";
 
 print color 'white on black';
 cls();
-locate 1,    1;
+locate 1, 1;
 setscroll 1, $rows - 3;
 savepos;
 my $birds = [];
@@ -43,7 +43,7 @@ sub write_status {
     my %a = @_;
     locate $rows- 2, 1;
     print( ( color 'black on green' ), "birdhouse at $server" );
-    print( ( color 'black on cyan'), " @$birds");
+    print( ( color 'black on green'), " @$birds");
     clline;
 }
 write_status();
@@ -103,13 +103,18 @@ $connect = sub {
     );
     $tx->on_finish(
         sub {
-            debug "lost connection to $ws_url, reconnecting in 2 seconds";
+            write_server_msg "lost connection to $ws_url";
             Mojo::IOLoop->timer(
                 2 => sub { $ua->websocket( $ws_url => $connect ); } );
         }
     );
-    $SIG{INT} = $SIG{QUIT} =
-      sub { $tx->finish if $tx->is_websocket && $tx->is_done; exit; };
+    $SIG{INT} = $SIG{QUIT} = sub {
+        $tx->finish if $tx->is_websocket && $tx->is_done;
+        setscroll 1, $rows;
+        locate $rows-1,1;
+        print "\nbye!\n";
+        exit;
+    };
 };
 
 $ua->websocket($ws_url => $connect);
