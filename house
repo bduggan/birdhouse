@@ -24,11 +24,12 @@ websocket '/door' => sub {
             my $id = $1;
             $c->app->log->debug("connect from $id");
             $birds{$id} = $tx;
+            $tx->send_message( $j->encode({id => 'server', birds => [keys %birds]}) );
             $c->on_finish(
                 sub {
                     $c->app->log->debug("disconnect from $id");
-                    wall { id => 'server', msg => "$id has left" };
                     delete $birds{$id};
+                    wall { id => 'server', msg => "$id has left", birds => [keys %birds] };
                 }
             );
             $c->on_message(
@@ -37,7 +38,7 @@ websocket '/door' => sub {
                     wall { id => $id, msg => $msg };
                 }
             );
-            wall { id => 'server', msg => "$id has joined" };
+            wall { id => 'server', msg => "$id has joined", birds => [keys %birds] };
         }
     );
 };

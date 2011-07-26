@@ -9,6 +9,7 @@ use Mojo::JSON;
 use File::Basename qw/dirname/;
 use Term::Size;
 use Term::ANSIScreen qw/:color :cursor :screen/;
+use warnings;
 use strict;
 
 $|=1;
@@ -37,9 +38,15 @@ cls();
 locate 1,    1;
 setscroll 1, $rows - 3;
 savepos;
-locate $rows- 2, 1;
-print( ( color 'black on green' ), "birdhouse at $server" );
-clline;
+my $birds = [];
+sub write_status {
+    my %a = @_;
+    locate $rows- 2, 1;
+    print( ( color 'black on green' ), "birdhouse at $server" );
+    print( ( color 'black on cyan'), " @$birds");
+    clline;
+}
+write_status();
 locate $rows - 1, 1;
 print ( ( color 'yellow on black'), "$id> " );
 
@@ -83,7 +90,11 @@ $connect = sub {
             my ( $tx, $msg ) = @_;
             $msg = $j->decode($msg);
             if ( $msg->{id} eq 'server' ) {
-                write_server_msg( $msg->{msg});
+                if ($msg->{birds}) {
+                    $birds = [ @{ $msg->{birds} } ];
+                    write_status();
+                }
+                write_server_msg( $msg->{msg}) if $msg->{msg};
             }
             else {
                 write_chat_msg($msg->{id} ,$msg->{msg});
