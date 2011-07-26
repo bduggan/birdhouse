@@ -22,6 +22,7 @@ my $ua     = Mojo::UserAgent->new();
 my $id     = $ENV{USER} || hostname();
 my $j      = Mojo::JSON->new();
 $ua->log->path('./log/birdhouse.log');
+$ua->websocket_timeout( 60 * 60 * 60 );
 
 sub debug { $ua->log->debug(@_); }
 
