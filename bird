@@ -107,6 +107,10 @@ $w->add( \*STDIN,
     on_readable => sub {
         my ( $watcher, $handle ) = @_;
         chomp( my $input = <$handle> );
+        unless ($tx && $tx->is_websocket) {
+            write_server_msg("write failed : no connection to $server");
+            return;
+        }
         $tx->send_message($input);
     }
 );
