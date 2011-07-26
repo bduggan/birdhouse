@@ -7,7 +7,7 @@ use Mojo::JSON;
 
 app->secret(rand 1);
 
-# client connects to /door and waits to be told something
+# client connects to /door and says hello
 my %birds;
 my $j = Mojo::JSON->new();
 sub wall {
