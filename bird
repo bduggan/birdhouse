@@ -1,0 +1,117 @@
+#!/usr/bin/env perl
+
+# bird -- client for birdhouse
+
+use 5.10.0;
+use Mojo::UserAgent;
+use Sys::Hostname;
+use Mojo::JSON;
+use File::Basename qw/dirname/;
+use Term::Size;
+use Term::ANSIScreen qw/:color :cursor :screen/;
+use strict;
+
+$|=1;
+
+# Configuration
+chdir dirname $0;
+-d 'log' or mkdir 'log' or die $!;
+my $server = shift or die "Usage $0 <host:port>\n";
+my $ws_url = "ws://$server/door";
+my $ua     = Mojo::UserAgent->new();
+my $id     = $ENV{USER} || hostname();
+my $j      = Mojo::JSON->new();
+$ua->log->path('./log/birdhouse.log');
+
+sub debug { $ua->log->debug(@_); }
+
+# Set up screen
+my ($cols, $rows) = Term::Size::chars *STDOUT{IO};
+$Term::ANSIScreen::AUTORESET = 1;
+
+debug "connecting to $ws_url";
+
+print color 'white on black';
+cls();
+locate 1,    1;
+setscroll 1, $rows - 3;
+savepos;
+locate $rows- 2, 1;
+print( ( color 'black on green' ), "birdhouse at $server" );
+clline;
+locate $rows - 1, 1;
+print ( ( color 'yellow on black'), "$id> " );
+
+sub bottom {
+    locate $rows - 1,  length("$id> ") + 1;
+    clline;
+}
+
+sub write_server_msg {
+    my $msg = shift;
+    loadpos;
+    print color 'cyan on black';
+    say $msg;
+    savepos;
+    bottom();
+}
+
+sub write_chat_msg {
+    my ($who,$msg) = @_;
+    loadpos;
+    print color 'white on black';
+    say "$who : $msg";
+    savepos;
+    bottom();
+}
+
+my $connect;
+my $tx;
+$connect = sub {
+    my $c = shift;
+    $tx = pop;
+    if ( my $e = $tx->error ) {
+        debug "error (retry in 5 seconds): $e";
+        Mojo::IOLoop->timer( 5 => sub { $ua->websocket( $ws_url => $connect ); }
+        );
+        return;
+    }
+    $tx->send_message("hello, i am $id");
+    $tx->on_message(
+        sub {
+            my ( $tx, $msg ) = @_;
+            $msg = $j->decode($msg);
+            if ( $msg->{id} eq 'server' ) {
+                write_server_msg( $msg->{msg});
+            }
+            else {
+                write_chat_msg($msg->{id} ,$msg->{msg});
+            }
+        }
+    );
+    $tx->on_finish(
+        sub {
+            debug "lost connection to $ws_url, reconnecting in 2 seconds";
+            Mojo::IOLoop->timer(
+                2 => sub { $ua->websocket( $ws_url => $connect ); } );
+        }
+    );
+    $SIG{INT} = $SIG{QUIT} =
+      sub { $tx->finish if $tx->is_websocket && $tx->is_done; exit; };
+};
+
+$ua->websocket($ws_url => $connect);
+
+my $w = Mojo::IOLoop->singleton->iowatcher;
+$w->add( \*STDIN,
+    on_readable => sub {
+        my ( $watcher, $handle ) = @_;
+        chomp( my $input = <$handle> );
+        $tx->send_message($input);
+    }
+);
+
+debug "starting";
+
+Mojo::IOLoop->singleton->start;
+

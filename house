@@ -1,0 +1,52 @@
+#!/usr/bin/env perl
+
+# house -- server for birdhouse
+
+use Mojolicious::Lite;
+use Mojo::JSON;
+
+app->secret(rand 1);
+
+# client connects to /door and waits to be told something
+my %birds;
+my $j = Mojo::JSON->new();
+sub wall {
+    my $msg = shift;
+    $_->send_message($j->encode($msg)) for values %birds;
+}
+websocket '/door' => sub {
+    my $c = shift;
+    $c->on_message(
+        sub {
+            my ( $tx, $hello ) = @_;
+            $hello =~ /hello, i am (.*)$/
+              or return $c->app->debug("invalid greeting '$hello'");
+            my $id = $1;
+            $c->app->log->debug("connect from $id");
+            $birds{$id} = $tx;
+            $c->on_finish(
+                sub {
+                    $c->app->log->debug("disconnect from $id");
+                    wall { id => 'server', msg => "$id has left" };
+                    delete $birds{$id};
+                }
+            );
+            $c->on_message(
+                sub {
+                    my ( $tx, $msg ) = @_;
+                    wall { id => $id, msg => $msg };
+                }
+            );
+            wall { id => 'server', msg => "$id has joined" };
+        }
+    );
+};
+
+app->start;
+
+__DATA__
+@@ exception.html.ep
+ERROR : <%== stash 'exception' %>
+
+@@ not_found.html.ep
+NOT FOUND : <%== $self->req->url->path %>
