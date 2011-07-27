@@ -52,6 +52,7 @@ print ( ( color 'yellow on black'), "$id> " );
 
 sub bottom {
     locate $rows - 1,  length("$id> ") + 1;
+    print color 'white on black';
     clline;
 }
 
