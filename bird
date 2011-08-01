@@ -40,23 +40,24 @@ print color 'white on black';
 cls();
 locate 1, 1;
 setscroll 1, $rows - 3;
-savepos;
 my $birds = [];
 sub write_status {
     my %a = @_;
+    savepos;
     locate $rows- 2, 1;
     print( ( color 'black on green' ), "birdhouse at $server" );
     print( ( color 'black on green'), " @$birds");
     clline;
+    loadpos;
 }
 write_status();
-locate $rows - 1, 1;
-print ( ( color 'yellow on black'), "$id> " );
 
-sub bottom {
+sub prompt {
+    locate $rows - 1, 1;
+    clline;
+    print ( ( color 'yellow on black'), "$id> " );
     locate $rows - 1,  length("$id> ") + 1;
     print color 'white on black';
-    clline;
 }
 
 sub timestamp {
@@ -66,22 +67,22 @@ sub timestamp {
 
 sub write_server_msg {
     my $msg = shift;
-    loadpos;
+    savepos;
+    locate $rows-3, 1;
     timestamp();
     print color 'cyan on black';
     say $msg;
-    savepos;
-    bottom();
+    loadpos;
 }
 
 sub write_chat_msg {
     my ($who,$msg) = @_;
-    loadpos;
+    savepos;
+    locate $rows-3, 1;
     timestamp();
     print color 'white on black';
     say "$who : $msg";
-    savepos;
-    bottom();
+    loadpos;
 }
 
 my $connect;
@@ -126,6 +127,7 @@ $connect = sub {
         print "\nbye!\n";
         exit;
     };
+    prompt();
 };
 
 $ua->websocket($ws_url => $connect);
@@ -140,6 +142,7 @@ $w->add( \*STDIN,
             return;
         }
         $tx->send_message($input);
+        prompt();
     }
 );
 
