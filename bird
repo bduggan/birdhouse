@@ -11,35 +11,44 @@ use Term::ANSIScreen qw/:color :cursor :screen/;
 use warnings;
 use strict;
 
-$|=1;
+my ($ua, $id, $j, $rows, $cols);
+my $birds = [];
+my $connect;
+my $tx;
+my $server; # host:port
+my $ws_url; # ws://host:port/path
 
-# Configuration
-chdir dirname $0;
--d 'log' or mkdir 'log' or die $!;
-my $server = shift or die "Usage $0 <host:port>\n";
-$server = "http://$server" unless $server=~/:\/\//;
-my $ws_url = Mojo::URL->new($server);
-$ws_url->scheme("ws");
-$ws_url->path("door");
-my $ua     = Mojo::UserAgent->new();
-my $id     = $ENV{USER} || [getpwuid($<)]->[0];
-my $j      = Mojo::JSON->new();
-$ua->log->path('./log/birdhouse.log');
-$ua->websocket_timeout( 60 * 60 * 60 );
+&main;
+
+exit;
 
 sub debug { $ua->log->debug(@_); }
 
-# Set up screen
-my ($cols, $rows) = Term::Size::chars *STDOUT{IO};
-$Term::ANSIScreen::AUTORESET = 1;
+sub init_birdhouse {
+    $|=1;
+    chdir dirname $0;
+    -d 'log' or mkdir 'log' or die $!;
+    $server = shift @ARGV or die "Usage $0 <host:port>\n";
+    $server = "http://$server" unless $server=~/:\/\//;
+    $ws_url = Mojo::URL->new($server);
+    $ws_url->scheme("ws");
+    $ws_url->path("door");
+    $ua     = Mojo::UserAgent->new();
+    $id     = $ENV{USER} || [getpwuid($<)]->[0];
+    $j      = Mojo::JSON->new();
+    $ua->log->path('./log/birdhouse.log');
+    $ua->websocket_timeout( 60 * 60 * 60 );
+}
 
-debug "connecting to $ws_url";
+sub init_screen {
+    ($cols, $rows) = Term::Size::chars *STDOUT{IO};
+    $Term::ANSIScreen::AUTORESET = 1;
+    print color 'white on black';
+    cls();
+    locate 1, 1;
+    setscroll 1, $rows - 3;
+}
 
-print color 'white on black';
-cls();
-locate 1, 1;
-setscroll 1, $rows - 3;
-my $birds = [];
 sub write_status {
     my %a = @_;
     savepos;
@@ -49,7 +58,6 @@ sub write_status {
     clline;
     loadpos;
 }
-write_status();
 
 sub prompt {
     locate $rows - 1, 1;
@@ -84,68 +92,76 @@ sub write_chat_msg {
     loadpos;
 }
 
-my $connect;
-my $tx;
-$connect = sub {
-    my $c = shift;
-    $tx = pop;
-    if ( my $e = $tx->error ) {
-        debug "error (retry in 5 seconds): $e";
-        Mojo::IOLoop->singleton->timer( 5 => sub { $ua->websocket( $ws_url => $connect ); }
-        );
-        return;
-    }
-    $tx->send_message("hello, i am $id");
-    $tx->on_message(
-        sub {
-            my ( $tx, $msg ) = @_;
-            $msg = $j->decode($msg);
-            if ( $msg->{id} eq 'server' ) {
-                if ($msg->{birds}) {
-                    $birds = [ @{ $msg->{birds} } ];
-                    write_status();
-                }
-                write_server_msg( $msg->{msg}) if $msg->{msg};
-            }
-            else {
-                write_chat_msg($msg->{id} ,$msg->{msg});
-            }
-        }
-    );
-    $tx->on_finish(
-        sub {
-            write_server_msg "lost connection to $ws_url";
-            Mojo::IOLoop->singleton->timer(
-                2 => sub { $ua->websocket( $ws_url => $connect ); } );
-        }
-    );
-    $SIG{INT} = $SIG{QUIT} = sub {
-        $tx->finish if $tx->is_websocket && $tx->is_done;
-        setscroll 1, $rows;
-        locate $rows-1,1;
-        print "\nbye!\n";
-        exit;
-    };
-    prompt();
-};
-
-$ua->websocket($ws_url => $connect);
-
-my $w = Mojo::IOLoop->singleton->iowatcher;
-$w->add( \*STDIN,
-    on_readable => sub {
-        my ( $watcher, $handle ) = @_;
-        chomp( my $input = <$handle> );
-        unless ($tx && $tx->is_websocket) {
-            write_server_msg("write failed : no connection to $server");
+sub init_connection {
+    $connect = sub {
+        my $c = shift;
+        $tx = pop;
+        if ( my $e = $tx->error ) {
+            debug "error (retry in 5 seconds): $e";
+            Mojo::IOLoop->singleton->timer( 5 => sub { $ua->websocket( $ws_url => $connect ); }
+            );
             return;
         }
-        $tx->send_message($input);
+        $tx->send_message("hello, i am $id");
+        $tx->on_message(
+            sub {
+                my ( $tx, $msg ) = @_;
+                $msg = $j->decode($msg);
+                if ( $msg->{id} eq 'server' ) {
+                    if ($msg->{birds}) {
+                        $birds = [ @{ $msg->{birds} } ];
+                        write_status();
+                    }
+                    write_server_msg( $msg->{msg}) if $msg->{msg};
+                }
+                else {
+                    write_chat_msg($msg->{id} ,$msg->{msg});
+                }
+            }
+        );
+        $tx->on_finish(
+            sub {
+                write_server_msg "lost connection to $ws_url";
+                Mojo::IOLoop->singleton->timer(
+                    2 => sub { $ua->websocket( $ws_url => $connect ); } );
+            }
+        );
+        $SIG{INT} = $SIG{QUIT} = sub {
+            $tx->finish if $tx->is_websocket && $tx->is_done;
+            setscroll 1, $rows;
+            locate $rows-1,1;
+            print "\nbye!\n";
+            exit;
+        };
         prompt();
-    }
-);
+    };
+}
 
-debug "starting";
+sub init_client {
+    $ua->websocket( $ws_url => $connect );
+    my $w = Mojo::IOLoop->singleton->iowatcher;
+    $w->add(
+        \*STDIN,
+        on_readable => sub {
+            my ( $watcher, $handle ) = @_;
+            chomp( my $input = <$handle> );
+            unless ( $tx && $tx->is_websocket ) {
+                write_server_msg("write failed : no connection to $server");
+                return;
+            }
+            $tx->send_message($input);
+            prompt();
+        }
+    );
+}
 
-Mojo::IOLoop->singleton->start;
+sub main {
+    init_birdhouse();
+    debug "starting";
+    init_screen();
+    init_connection();
+    write_status();
+    init_client();
+    Mojo::IOLoop->singleton->start;
+}
 
