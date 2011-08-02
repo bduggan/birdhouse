@@ -91,7 +91,7 @@ $connect = sub {
     $tx = pop;
     if ( my $e = $tx->error ) {
         debug "error (retry in 5 seconds): $e";
-        Mojo::IOLoop->timer( 5 => sub { $ua->websocket( $ws_url => $connect ); }
+        Mojo::IOLoop->singleton->timer( 5 => sub { $ua->websocket( $ws_url => $connect ); }
         );
         return;
     }
@@ -115,7 +115,7 @@ $connect = sub {
     $tx->on_finish(
         sub {
             write_server_msg "lost connection to $ws_url";
-            Mojo::IOLoop->timer(
+            Mojo::IOLoop->singleton->timer(
                 2 => sub { $ua->websocket( $ws_url => $connect ); } );
         }
     );
