@@ -4,7 +4,6 @@
 
 use 5.10.0;
 use Mojo::UserAgent;
-use Sys::Hostname;
 use Mojo::JSON;
 use File::Basename qw/dirname/;
 use Term::Size;
@@ -23,7 +22,7 @@ my $ws_url = Mojo::URL->new($server);
 $ws_url->scheme("ws");
 $ws_url->path("door");
 my $ua     = Mojo::UserAgent->new();
-my $id     = $ENV{USER} || hostname();
+my $id     = $ENV{USER} || [getpwuid($<)]->[0];
 my $j      = Mojo::JSON->new();
 $ua->log->path('./log/birdhouse.log');
 $ua->websocket_timeout( 60 * 60 * 60 );
