@@ -22,6 +22,8 @@ websocket '/door' => sub {
             $hello =~ /hello, i am (.*)$/
               or return $c->app->debug("invalid greeting '$hello'");
             my $id = $1;
+            return $c->app->debug('reserved id "server"')
+               if $id eq 'server'; # reserved
             $c->app->log->debug("connect from $id");
             $birds{$id} = $tx;
             $tx->send_message( $j->encode({id => 'server', birds => [keys %birds]}) );
