@@ -8,6 +8,7 @@ use Mojo::JSON;
 use File::Basename qw/dirname/;
 use Term::Size;
 use Term::ANSIScreen qw/:color :cursor :screen/;
+use List::Util qw/max/;
 use warnings;
 use strict;
 
@@ -87,8 +88,11 @@ sub write_chat_msg {
     savepos;
     locate $rows-3, 1;
     timestamp();
+    print color 'yellow on black';
+    my $max = max map length, @$birds;
+    printf("%${max}s: ",$who);
     print color 'white on black';
-    say "$who : $msg";
+    say $msg;
     loadpos;
 }
 
