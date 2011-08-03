@@ -100,8 +100,10 @@ sub init_connection {
     $connect = sub {
         my $c = shift;
         $tx = pop;
+        write_server_msg("connecting to $ws_url");
         if ( my $e = $tx->error ) {
             debug "error (retry in 5 seconds): $e";
+            write_server_msg($e." (retry in 5 seconds)");
             Mojo::IOLoop->singleton->timer( 5 => sub { $ua->websocket( $ws_url => $connect ); }
             );
             return;
@@ -137,11 +139,12 @@ sub init_connection {
             print "\nbye!\n";
             exit;
         };
+        write_server_msg("connected.");
         prompt();
     };
 }
 
-sub init_client {
+sub init_stdin {
     $ua->websocket( $ws_url => $connect );
     my $w = Mojo::IOLoop->singleton->iowatcher;
     $w->add(
@@ -165,7 +168,7 @@ sub main {
     init_screen();
     init_connection();
     write_status();
-    init_client();
+    init_stdin();
     Mojo::IOLoop->singleton->start;
 }
 
