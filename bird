@@ -69,7 +69,7 @@ sub prompt {
 
 sub timestamp {
     print color 'green on black';
-    print '['.scalar(localtime).'] ';
+    print "[",scalar(localtime)=~/(\S+) \d+$/,"] ";
 }
 
 sub write_server_msg {
