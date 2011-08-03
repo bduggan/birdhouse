@@ -8,16 +8,23 @@ use Mojo::JSON;
 use File::Basename qw/dirname/;
 use Term::Size;
 use Term::ANSIScreen qw/:color :cursor :screen/;
+use IO::Socket::SSL;
 use List::Util qw/max/;
+use Cwd qw/abs_path/;
 use warnings;
 use strict;
 
-my ($ua, $id, $j, $rows, $cols);
+$|=1;
+my $src   = q[https://raw.github.com/bduggan/birdhouse/master/bird];
+my $ua    = Mojo::UserAgent->new();
+my $id    = $ENV{USER} || [ getpwuid($<) ]->[0];
+my $j     = Mojo::JSON->new();
 my $birds = [];
 my $connect;
 my $tx;
-my $server; # host:port
-my $ws_url; # ws://host:port/path
+my $server;    # host:port
+my $ws_url;    # ws://host:port/path
+my ( $cols, $rows ) = Term::Size::chars * STDOUT { IO };
 
 &main;
 
@@ -25,24 +32,35 @@ exit;
 
 sub debug { $ua->log->debug(@_); }
 
+sub self_upgrade {
+    my $got = $ua->get($src)->res->body;
+    my $this = do { open 0; join '', <0>; };
+    return if $got eq $this;
+    my $this_file = abs_path($0);
+    print qq[There is a new bird on github.\nGet it and overwrite $this_file [Y/n]?];
+    my $response = <STDIN>;
+    return if $response =~ /^n/i;
+    open my $fh, ">$this_file" or die "cannot write to $0: $!";
+    print $fh $got;
+    close $fh or die $!;
+    print "restarting\n";
+    exec $this_file, @ARGV;
+    die "exec failed: $!";
+}
+
 sub init_birdhouse {
-    $|=1;
     chdir dirname $0;
     -d 'log' or mkdir 'log' or die $!;
-    $server = shift @ARGV or die "Usage $0 <host:port>\n";
+    $server = $ARGV[0] or die "Usage $0 <host:port>\n";
     $server = "http://$server" unless $server=~/:\/\//;
     $ws_url = Mojo::URL->new($server);
     $ws_url->scheme("ws");
     $ws_url->path("door");
-    $ua     = Mojo::UserAgent->new();
-    $id     = $ENV{USER} || [getpwuid($<)]->[0];
-    $j      = Mojo::JSON->new();
     $ua->log->path('./log/birdhouse.log');
     $ua->websocket_timeout( 60 * 60 * 60 );
 }
 
 sub init_screen {
-    ($cols, $rows) = Term::Size::chars *STDOUT{IO};
     $Term::ANSIScreen::AUTORESET = 1;
     print color 'white on black';
     cls();
@@ -163,6 +181,7 @@ sub init_stdin {
 }
 
 sub main {
+    -w $0 and self_upgrade();
     init_birdhouse();
     debug "starting";
     init_screen();
