@@ -3,6 +3,7 @@
 # bird -- client for birdhouse
 
 use 5.10.0;
+
 use Mojo::UserAgent;
 use Mojo::JSON;
 use File::Basename qw/dirname/;
@@ -33,7 +34,16 @@ exit;
 sub debug { $ua->log->debug(@_); }
 
 sub self_upgrade {
-    my $got = $ua->get($src)->res->body;
+    my $tx = $ua->get($src);
+    my $res;
+    unless ( $res = $tx->success ) {
+        my ($msg,$code) = $tx->error;
+        debug "error $msg ".($code || '');
+        print "press return";
+        <STDIN>;
+        return;
+    }
+    my $got = $res->body;
     my $this = do { open 0; join '', <0>; };
     return if $got eq $this;
     my $this_file = abs_path($0);
