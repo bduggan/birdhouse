@@ -38,7 +38,7 @@ sub self_upgrade {
     my $res;
     unless ( $res = $tx->success ) {
         my ($msg,$code) = $tx->error;
-        debug "error $msg ".($code || '');
+        debug "error checking github : $msg ".($code || '');
         print "press return";
         <STDIN>;
         return;
@@ -47,7 +47,7 @@ sub self_upgrade {
     my $this = do { open 0; join '', <0>; };
     return if $got eq $this;
     my $this_file = abs_path($0);
-    print qq[There is a new bird on github.\nGet it and overwrite $this_file [Y/n]?];
+    print qq[The bird on github differs from $this_file.\nReplace the local one? [Y/n]];
     my $response = <STDIN>;
     return if $response =~ /^n/i;
     open my $fh, ">$this_file" or die "cannot write to $0: $!";
