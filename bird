@@ -82,9 +82,9 @@ sub write_status {
     my %a = @_;
     savepos;
     locate $rows- 2, 1;
-    print( ( color 'black on green' ), "birdhouse at $server" );
-    print( ( color 'black on green'), " @$birds");
-    clline;
+    my $str = "birdhouse at $server @$birds";
+    print( ( color 'white on blue' ), $str);
+    print ' ' for length($str)..($cols-1);
     loadpos;
 }
 
