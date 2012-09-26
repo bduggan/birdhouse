@@ -25,11 +25,16 @@ websocket '/door' => sub {
             my ( $c, $msg ) = @_;
 
             $msg =~ /hello, i am (.*)$/
-              or return $c->app->debug("invalid greeting '$msg'");
+              or return $c->app->log->debug("invalid greeting '$msg'");
             my $id = $1;
             return $c->app->debug('reserved id "server"')
                if $id eq 'server'; # reserved
             $c->app->log->debug("connect from $id");
+            if (exists($birds{$id})) {
+                $c->app->log->debug("conflicting user $id");
+                $c->tx->send($j->encode({ id => 'server', fly_away => 1, msg => "user $id is already connected"}));
+                return;
+            }
             $birds{$id} = $c->tx;
             $c->tx->send( $j->encode({id => 'server', birds => [keys %birds]}) );
             $c->on(finish =>
