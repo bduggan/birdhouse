@@ -127,7 +127,6 @@ sub init_connection {
                         write_status();
                     }
                     write_server_msg( $msg->{msg}) if $msg->{msg};
-                    Mojo::IOLoop->stop if $msg->{fly_away};
                 }
                 else {
                     write_chat_msg($msg->{id} ,$msg->{msg});

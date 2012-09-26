@@ -6,7 +6,7 @@ SYNOPSIS
 
 Start the server :
 
-    ./house daemon --listen http://localhost:3001 --websocket 3600
+    ./house daemon --listen http://localhost:3001
 
 Start clients which connect to the server :
 
