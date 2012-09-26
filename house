@@ -5,45 +5,54 @@
 use Mojolicious::Lite;
 use Mojo::JSON;
 
+$ENV{MOJO_INACTIVITY_TIMEOUT} = 60 * 60;
+
 app->secret(rand 1);
+app->log->level('debug');
 
 # client connects to /door and says hello
 my %birds;
 my $j = Mojo::JSON->new();
 sub wall {
     my $msg = shift;
-    $_->send_message($j->encode($msg)) for values %birds;
+    #app->log->debug("sending msg $msg->{msg}");
+    $_->send($j->encode($msg)) for values %birds;
 }
 websocket '/door' => sub {
     my $c = shift;
-    $c->on_message(
+    $c->on(message =>
         sub {
-            my ( $tx, $hello ) = @_;
-            $hello =~ /hello, i am (.*)$/
-              or return $c->app->debug("invalid greeting '$hello'");
+            my ( $c, $msg ) = @_;
+
+            $msg =~ /hello, i am (.*)$/
+              or return $c->app->debug("invalid greeting '$msg'");
             my $id = $1;
             return $c->app->debug('reserved id "server"')
                if $id eq 'server'; # reserved
             $c->app->log->debug("connect from $id");
-            $birds{$id} = $tx;
-            $tx->send_message( $j->encode({id => 'server', birds => [keys %birds]}) );
-            $c->on_finish(
+            $birds{$id} = $c->tx;
+            $c->tx->send( $j->encode({id => 'server', birds => [keys %birds]}) );
+            $c->on(finish =>
                 sub {
                     $c->app->log->debug("disconnect from $id");
                     delete $birds{$id};
                     wall { id => 'server', msg => "$id has left", birds => [keys %birds] };
                 }
             );
-            $c->on_message(
+            wall { id => 'server', msg => "$id has joined", birds => [keys %birds] };
+            $c->tx->unsubscribe('message');
+            $c->tx->on(message =>
                 sub {
                     my ( $tx, $msg ) = @_;
                     wall { id => $id, msg => $msg };
                 }
             );
-            wall { id => 'server', msg => "$id has joined", birds => [keys %birds] };
         }
     );
 };
+Mojo::IOLoop->recurring(10 => sub {
+        app->log->debug("Connections : ".keys %birds);
+    } );
 
 app->start;
 

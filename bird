@@ -6,6 +6,7 @@ use 5.10.0;
 
 use Mojo::UserAgent;
 use Mojo::JSON;
+use Mojo::Log;
 use File::Basename qw/dirname/;
 use Term::Size;
 use Term::ANSIScreen qw/:color :cursor :screen/;
@@ -16,47 +17,22 @@ use warnings;
 use strict;
 
 $|=1;
-my $src   = q[https://raw.github.com/bduggan/birdhouse/master/bird];
 my $ua    = Mojo::UserAgent->new();
 my $id    = $ENV{USER} || [ getpwuid($<) ]->[0];
 my $j     = Mojo::JSON->new();
 my $birds = [];
-my $connect;
-my $tx;
+my $ws;
 my $server;    # host:port
 my $ws_url;    # ws://host:port/path
 my ( $cols, $rows ) = Term::Size::chars * STDOUT { IO };
+
+my $log = Mojo::Log->new(level => 'debug');
 
 &main;
 
 exit;
 
-sub debug { $ua->log->debug(@_); }
-
-sub self_upgrade {
-    my $tx = $ua->get($src);
-    my $res;
-    unless ( $res = $tx->success ) {
-        my ($msg,$code) = $tx->error;
-        debug "error checking github : $msg ".($code || '');
-        print "press return";
-        <STDIN>;
-        return;
-    }
-    my $got = $res->body;
-    my $this = do { open 0; join '', <0>; };
-    return if $got eq $this;
-    my $this_file = abs_path($0);
-    print qq[The bird on github differs from $this_file.\nReplace the local one? [Y/n]];
-    my $response = <STDIN>;
-    return if $response =~ /^n/i;
-    open my $fh, ">$this_file" or die "cannot write to $0: $!";
-    print $fh $got;
-    close $fh or die $!;
-    print "restarting\n";
-    exec $this_file, @ARGV;
-    die "exec failed: $!";
-}
+sub debug { $log->debug(@_); }
 
 sub init_birdhouse {
     chdir dirname $0;
@@ -66,8 +42,8 @@ sub init_birdhouse {
     $ws_url = Mojo::URL->new($server);
     $ws_url->scheme("ws");
     $ws_url->path("door");
-    $ua->log->path('./log/birdhouse.log');
-    $ua->websocket_timeout( 60 * 60 * 60 );
+    $log->path('./log/birdhouse.log');
+    $ua->inactivity_timeout(60 * 60);
 }
 
 sub init_screen {
@@ -125,9 +101,11 @@ sub write_chat_msg {
 }
 
 sub init_connection {
+    debug "initializing";
+    my $connect;
     $connect = sub {
-        my $c = shift;
-        $tx = pop;
+        debug "connecting";
+        my ($ua, $tx) = @_;
         write_server_msg("connecting to $ws_url");
         if ( my $e = $tx->error ) {
             debug "error (retry in 5 seconds): $e";
@@ -136,8 +114,10 @@ sub init_connection {
             );
             return;
         }
-        $tx->send_message("hello, i am $id");
-        $tx->on_message(
+        $ws = $tx;
+        $tx->send("hello, i am $id");
+        $tx->unsubscribe('message');
+        $tx->on(message =>
             sub {
                 my ( $tx, $msg ) = @_;
                 $msg = $j->decode($msg);
@@ -153,7 +133,7 @@ sub init_connection {
                 }
             }
         );
-        $tx->on_finish(
+        $tx->on( finish =>
             sub {
                 write_server_msg "lost connection to $ws_url";
                 Mojo::IOLoop->singleton->timer(
@@ -161,7 +141,7 @@ sub init_connection {
             }
         );
         $SIG{INT} = $SIG{QUIT} = sub {
-            $tx->finish if $tx->is_websocket && $tx->is_done;
+            $ws->finish if $ws && $ws->is_websocket;
             setscroll 1, $rows;
             locate $rows-1,1;
             print "\nbye!\n";
@@ -170,34 +150,34 @@ sub init_connection {
         write_server_msg("connected.");
         prompt();
     };
+    $ua->websocket( $ws_url => $connect );
 }
 
 sub init_stdin {
-    $ua->websocket( $ws_url => $connect );
-    my $w = Mojo::IOLoop->singleton->iowatcher;
-    $w->add(
+    $ua->ioloop(Mojo::IOLoop->singleton);
+    my $w = $ua->ioloop->reactor;
+    $w->io(
         \*STDIN,
-        on_readable => sub {
-            my ( $watcher, $handle ) = @_;
-            chomp( my $input = <$handle> );
-            unless ( $tx && $tx->is_websocket ) {
+        sub {
+            chomp( my $input = <STDIN> );
+            unless ( $ws && $ws->is_websocket ) {
                 write_server_msg("write failed : no connection to $server");
                 return;
             }
-            $tx->send_message($input);
+            $ws->send($input);
             prompt();
         }
     );
+    $w->watch(\*STDIN, 1, 0); # watch for read events
 }
 
 sub main {
-    -w $0 and self_upgrade();
     init_birdhouse();
     debug "starting";
     init_screen();
-    init_connection();
     write_status();
     init_stdin();
-    Mojo::IOLoop->singleton->start;
+    init_connection();
+    Mojo::IOLoop->start;
 }
 
