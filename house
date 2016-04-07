@@ -7,16 +7,15 @@ use Mojo::JSON;
 
 $ENV{MOJO_INACTIVITY_TIMEOUT} = 60 * 60;
 
-app->secret(rand 1);
+app->secrets([rand 1]);
 app->log->level('debug');
 
 # client connects to /door and says hello
 my %birds;
-my $j = Mojo::JSON->new();
 sub wall {
     my $msg = shift;
     #app->log->debug("sending msg $msg->{msg}");
-    $_->send($j->encode($msg)) for values %birds;
+    $_->send({ json => $msg }) for values %birds;
 }
 websocket '/door' => sub {
     my $c = shift;
@@ -31,7 +30,7 @@ websocket '/door' => sub {
                if $id eq 'server'; # reserved
             $c->app->log->debug("connect from $id");
             $birds{$id} = $c->tx;
-            $c->tx->send( $j->encode({id => 'server', birds => [keys %birds]}) );
+            $c->tx->send( { json => { id => 'server', birds => [keys %birds] }} );
             $c->on(finish =>
                 sub {
                     $c->app->log->debug("disconnect from $id");

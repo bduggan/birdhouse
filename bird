@@ -19,7 +19,6 @@ use strict;
 $|=1;
 my $ua    = Mojo::UserAgent->new();
 my $id    = $ENV{USER} || [ getpwuid($<) ]->[0];
-my $j     = Mojo::JSON->new();
 my $birds = [];
 my $ws;
 my $server;    # host:port
@@ -117,10 +116,9 @@ sub init_connection {
         $ws = $tx;
         $tx->send("hello, i am $id");
         $tx->unsubscribe('message');
-        $tx->on(message =>
+        $tx->on(json =>
             sub {
                 my ( $tx, $msg ) = @_;
-                $msg = $j->decode($msg);
                 if ( $msg->{id} eq 'server' ) {
                     if ($msg->{birds}) {
                         $birds = [ @{ $msg->{birds} } ];
