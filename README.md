@@ -1,3 +1,7 @@
+<p align="center">
+<img src="https://pbs.twimg.com/profile_images/459754304573026304/wWnuAqvw.jpeg" width=250 height=250 />
+</p>
+
 birdhouse
 
 A simple mojolicious based command line chat client + server.
@@ -14,7 +18,4 @@ Start clients which connect to the server :
 
 Enjoy!
 
-<p align="center">
-<img src="https://pbs.twimg.com/profile_images/459754304573026304/wWnuAqvw.jpeg" width=250 height=250 />
-</p>
 
