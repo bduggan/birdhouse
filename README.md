@@ -15,6 +15,6 @@ Start clients which connect to the server :
 Enjoy!
 
 <p align="center">
-<img src="https://pbs.twimg.com/profile_images/459754304573026304/wWnuAqvw.jpeg" width=200 height=200 />
+<img src="https://pbs.twimg.com/profile_images/459754304573026304/wWnuAqvw.jpeg" width=250 height=250 />
 </p>
 
