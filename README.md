@@ -14,4 +14,5 @@ Start clients which connect to the server :
 
 Enjoy!
 
-![Birdhouse beer](https://pbs.twimg.com/profile_images/459754304573026304/wWnuAqvw.jpeg "birdhouse" {width=200px height=200px})
+<img src="https://pbs.twimg.com/profile_images/459754304573026304/wWnuAqvw.jpeg" width=200 height=200 />
+
