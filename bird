@@ -10,7 +10,6 @@ use Mojo::Log;
 use File::Basename qw/dirname/;
 use Term::Size;
 use Term::ANSIScreen qw/:color :cursor :screen/;
-use IO::Socket::SSL;
 use List::Util qw/max/;
 use Cwd qw/abs_path/;
 use warnings;
